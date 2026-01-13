@@ -540,7 +540,9 @@
                 Sign Out
             </button>
         </div>
-        <h1>Loading Roadmap...</h1>
+        <div id="roadmap-content">
+            <h1>Loading Roadmap...</h1>
+        </div>
     </div>
     <script>
         const STORAGE_KEY = 'dsaRoadmapProgress';
@@ -625,7 +627,7 @@
         }
 
         function generateRoadmap(data, progress) {
-            const container = document.getElementById('roadmap-container');
+            const container = document.getElementById('roadmap-content');
             const parts = ['<h1>A2Z DSA Course Roadmap</h1>'];
             const dataLen = data.length;
 
@@ -796,7 +798,7 @@
 
         function handleError(error) {
             console.error('Error:', error);
-            document.getElementById('roadmap-container').innerHTML = 
+            document.getElementById('roadmap-content').innerHTML = 
                 `<h1>Error</h1><p>Could not load the roadmap. Please ensure 'a2z.json' is in the same directory and correctly formatted.</p><p><em>${error.message}</em></p>`;
         }
     </script>
