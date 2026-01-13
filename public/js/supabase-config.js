@@ -145,7 +145,7 @@ const Auth = {
         if (!this.currentUser) return;
         
         try {
-            const localProgress = JSON.parse(localStorage.getItem('dsa_completion_state') || '{}');
+            const localProgress = JSON.parse(localStorage.getItem('dsaRoadmapProgress') || '{}');
             
             // Get cloud progress
             const { data: cloudData, error: fetchError } = await supabaseClient
@@ -181,7 +181,7 @@ const Auth = {
             if (upsertError) throw upsertError;
             
             // Update local storage with merged progress
-            localStorage.setItem('dsa_completion_state', JSON.stringify(mergedProgress));
+            localStorage.setItem('dsaRoadmapProgress', JSON.stringify(mergedProgress));
             
             console.log('Progress synced successfully');
         } catch (error) {
