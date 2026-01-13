@@ -3,8 +3,8 @@ const SUPABASE_URL = 'https://bgfrokougjvzyvmehhsw.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_fSG8nDsJv4vkat_dnu8-LQ_-FLvh7Y4';
 const SITE_URL = 'https://jrchintu.github.io/a2z/';
 
-// Initialize Supabase client
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Initialize Supabase client (use different variable name to avoid conflict with CDN global)
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Auth state management
 const Auth = {
@@ -14,14 +14,14 @@ const Auth = {
     async init() {
         try {
             // Check for existing session
-            const { data: { session }, error } = await supabase.auth.getSession();
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error) throw error;
             
             this.currentUser = session?.user || null;
             this.updateUI();
             
             // Listen for auth state changes
-            supabase.auth.onAuthStateChange((event, session) => {
+            supabaseClient.auth.onAuthStateChange((event, session) => {
                 this.currentUser = session?.user || null;
                 this.updateUI();
                 
@@ -37,7 +37,7 @@ const Auth = {
     // Sign in with email and password
     async signInWithEmail(email, password) {
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({
+            const { data, error } = await supabaseClient.auth.signInWithPassword({
                 email,
                 password
             });
@@ -51,7 +51,7 @@ const Auth = {
     // Sign up with email and password
     async signUpWithEmail(email, password) {
         try {
-            const { data, error } = await supabase.auth.signUp({
+            const { data, error } = await supabaseClient.auth.signUp({
                 email,
                 password,
                 options: {
@@ -68,7 +68,7 @@ const Auth = {
     // Sign in with OAuth provider (Google, GitHub)
     async signInWithProvider(provider) {
         try {
-            const { data, error } = await supabase.auth.signInWithOAuth({
+            const { data, error } = await supabaseClient.auth.signInWithOAuth({
                 provider,
                 options: {
                     redirectTo: SITE_URL
@@ -84,7 +84,7 @@ const Auth = {
     // Sign out
     async signOut() {
         try {
-            const { error } = await supabase.auth.signOut();
+            const { error } = await supabaseClient.auth.signOut();
             if (error) throw error;
             this.currentUser = null;
             this.updateUI();
@@ -97,7 +97,7 @@ const Auth = {
     // Password reset
     async resetPassword(email) {
         try {
-            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
                 redirectTo: `${SITE_URL}reset-password.html`
             });
             if (error) throw error;
@@ -110,7 +110,7 @@ const Auth = {
     // Update password (after reset)
     async updatePassword(newPassword) {
         try {
-            const { error } = await supabase.auth.updateUser({
+            const { error } = await supabaseClient.auth.updateUser({
                 password: newPassword
             });
             if (error) throw error;
@@ -148,7 +148,7 @@ const Auth = {
             const localProgress = JSON.parse(localStorage.getItem('dsa_completion_state') || '{}');
             
             // Get cloud progress
-            const { data: cloudData, error: fetchError } = await supabase
+            const { data: cloudData, error: fetchError } = await supabaseClient
                 .from('user_progress')
                 .select('progress')
                 .eq('user_id', this.currentUser.id)
@@ -170,7 +170,7 @@ const Auth = {
             }
             
             // Upsert to cloud
-            const { error: upsertError } = await supabase
+            const { error: upsertError } = await supabaseClient
                 .from('user_progress')
                 .upsert({
                     user_id: this.currentUser.id,
@@ -194,7 +194,7 @@ const Auth = {
         if (!this.currentUser) return;
         
         try {
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('user_progress')
                 .upsert({
                     user_id: this.currentUser.id,
@@ -213,7 +213,7 @@ const Auth = {
         if (!this.currentUser) return null;
         
         try {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('user_progress')
                 .select('progress')
                 .eq('user_id', this.currentUser.id)
