@@ -401,11 +401,145 @@
                 font-size: 0.875rem;
             }
         }
+
+        /* ==========================================================================
+           8. Auth UI Styles
+           ========================================================================== */
+        .auth-header {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .auth-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            font-family: inherit;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-surface);
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .auth-btn:hover {
+            background-color: var(--bg-subtle);
+            border-color: var(--primary-color);
+        }
+
+        .auth-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .auth-btn.logout-btn {
+            display: none;
+        }
+
+        #user-info {
+            display: none;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        #user-email {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .user-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .sync-indicator {
+            display: none;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .sync-indicator.syncing {
+            display: inline-flex;
+        }
+
+        .sync-spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .auth-header {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            #user-email {
+                max-width: 150px;
+            }
+        }
     </style>
 </head>
 
 <body>
     <div id="roadmap-container" class="container">
+        <div class="auth-header" id="auth-container">
+            <span id="user-info">
+                <span class="user-avatar" id="user-avatar">U</span>
+                <span id="user-email"></span>
+            </span>
+            <span class="sync-indicator" id="sync-indicator">
+                <span class="sync-spinner"></span>
+                <span>Syncing...</span>
+            </span>
+            <a href="login.html" class="auth-btn" id="login-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                    <polyline points="10 17 15 12 10 7"/>
+                    <line x1="15" y1="12" x2="3" y2="12"/>
+                </svg>
+                Sign In
+            </a>
+            <button class="auth-btn logout-btn" id="logout-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/>
+                    <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                Sign Out
+            </button>
+        </div>
         <h1>Loading Roadmap...</h1>
     </div>
     <script>
@@ -665,6 +799,84 @@
             document.getElementById('roadmap-container').innerHTML = 
                 `<h1>Error</h1><p>Could not load the roadmap. Please ensure 'a2z.json' is in the same directory and correctly formatted.</p><p><em>${error.message}</em></p>`;
         }
+    </script>
+
+    <!-- Supabase JS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase-config.js"></script>
+    <script>
+        // Auth integration for roadmap page
+        document.addEventListener('DOMContentLoaded', () => {
+            const logoutBtn = document.getElementById('logout-btn');
+            const syncIndicator = document.getElementById('sync-indicator');
+            const userAvatar = document.getElementById('user-avatar');
+
+            // Handle logout
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', async () => {
+                    await Auth.signOut();
+                });
+            }
+
+            // Override saveCompletionState to sync with cloud
+            const originalSaveCompletionState = saveCompletionState;
+            saveCompletionState = function() {
+                originalSaveCompletionState();
+                
+                // Sync to cloud if logged in
+                if (Auth.currentUser) {
+                    syncIndicator.classList.add('syncing');
+                    Auth.saveProgressToCloud(progressCache).finally(() => {
+                        setTimeout(() => {
+                            syncIndicator.classList.remove('syncing');
+                        }, 500);
+                    });
+                }
+            };
+
+            // Enhanced Auth initialization
+            const originalAuthInit = Auth.init.bind(Auth);
+            Auth.init = async function() {
+                await originalAuthInit();
+                
+                // Update avatar with user initial
+                if (this.currentUser && this.currentUser.email) {
+                    const initial = this.currentUser.email.charAt(0).toUpperCase();
+                    if (userAvatar) userAvatar.textContent = initial;
+                }
+                
+                // Load cloud progress if logged in
+                if (this.currentUser) {
+                    syncIndicator.classList.add('syncing');
+                    const cloudProgress = await this.loadProgressFromCloud();
+                    syncIndicator.classList.remove('syncing');
+                    
+                    if (cloudProgress) {
+                        // Merge cloud progress with local
+                        const localProgress = loadCompletionState();
+                        let hasChanges = false;
+                        
+                        for (const [key, value] of Object.entries(cloudProgress)) {
+                            if (value === true && !localProgress[key]) {
+                                localProgress[key] = true;
+                                hasChanges = true;
+                            }
+                        }
+                        
+                        if (hasChanges) {
+                            progressCache = localProgress;
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify(progressCache));
+                            
+                            // Reload the page to reflect changes
+                            location.reload();
+                        }
+                    }
+                }
+            };
+
+            // Re-initialize auth
+            Auth.init();
+        });
     </script>
 </body>
 

@@ -423,10 +423,136 @@
                 padding: 0.2rem;
             }
         }
+
+        /* ==========================================================================
+           10. Auth Navigation Styles
+           ========================================================================== */
+        .auth-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--primary-color);
+        }
+
+        .back-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .auth-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            font-family: inherit;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-surface);
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .auth-btn:hover {
+            background-color: var(--bg-subtle);
+            border-color: var(--primary-color);
+        }
+
+        .auth-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .auth-btn.logout-btn {
+            display: none;
+        }
+
+        #user-info {
+            display: none;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        #user-email {
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .user-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .auth-right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
     </style>
 </head>
 <body>
 <div class="container">
+<nav class="auth-nav">
+<a class="back-link" href="../../index.html">
+<svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M19 12H5M12 19l-7-7 7-7"></path>
+</svg>
+                Back to DSA Sheet
+            </a>
+<div class="auth-right">
+<span id="user-info">
+<span class="user-avatar" id="user-avatar">U</span>
+<span id="user-email"></span>
+</span>
+<a class="auth-btn" href="../../login.html" id="login-btn">
+<svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+<polyline points="10 17 15 12 10 7"></polyline>
+<line x1="15" x2="3" y1="12" y2="12"></line>
+</svg>
+                    Sign In
+                </a>
+<button class="auth-btn logout-btn" id="logout-btn">
+<svg fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+<polyline points="16 17 21 12 16 7"></polyline>
+<line x1="21" x2="9" y1="12" y2="12"></line>
+</svg>
+                    Sign Out
+                </button>
+</div>
+</nav>
 <header>
 <h1>Buy and Sell Stocks With Transaction Fees | (DP - 40)</h1>
 </header>
@@ -1611,6 +1737,38 @@ block.classList.remove('dsa_article_code_active');
             if (codeSections.length > 0) {
                 updateAllSections(lastSelectedLanguage);
             }
+        });
+    </script>
+<!-- Supabase JS SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../../js/supabase-config.js"></script>
+<script>
+        // Auth integration for article pages
+        document.addEventListener('DOMContentLoaded', () => {
+            const logoutBtn = document.getElementById('logout-btn');
+            const userAvatar = document.getElementById('user-avatar');
+
+            // Handle logout
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', async () => {
+                    await Auth.signOut();
+                });
+            }
+
+            // Enhanced Auth initialization with avatar update
+            const originalAuthInit = Auth.init.bind(Auth);
+            Auth.init = async function() {
+                await originalAuthInit();
+                
+                // Update avatar with user initial
+                if (this.currentUser && this.currentUser.email) {
+                    const initial = this.currentUser.email.charAt(0).toUpperCase();
+                    if (userAvatar) userAvatar.textContent = initial;
+                }
+            };
+
+            // Re-initialize auth
+            Auth.init();
         });
     </script>
 </body>
