@@ -1,7 +1,7 @@
 // Supabase Configuration
 const SUPABASE_URL = 'https://bgfrokougjvzyvmehhsw.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_fSG8nDsJv4vkat_dnu8-LQ_-FLvh7Y4';
-const SITE_URL = 'https://jrchintu.github.io/a2z/';
+const SITE_URL = 'https://jrchintu.github.io/a2z/public/';
 
 // Initialize Supabase client (use different variable name to avoid conflict with CDN global)
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
