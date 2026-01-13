@@ -228,7 +228,4 @@ const Auth = {
     }
 };
 
-// Initialize auth when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    Auth.init();
-});
+// Note: Auth.init() should be called by each page after setting up page-specific handlers
