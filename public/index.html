@@ -230,8 +230,19 @@
         .sub-content {
             max-height: 0;
             overflow: hidden;
-            transition: max-height 0.4s ease-in-out;
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
             contain: content;
+        }
+        
+        .collapsible.active + .content,
+        .sub-collapsible.active + .sub-content {
+            will-change: max-height;
+        }
+        
+        .content.expanded,
+        .sub-content.expanded {
+            overflow: visible;
+            will-change: auto;
         }
 
         .content {
@@ -839,25 +850,15 @@
         function addEventListeners() {
             const container = document.getElementById('roadmap-container');
             
-            // Use passive event listener for better scroll performance
+            // Optimized click handler with early exits
             container.addEventListener('click', function (e) {
                 const target = e.target;
                 
                 // Handle collapsible toggle
                 const collapsible = target.closest('.collapsible, .sub-collapsible');
                 if (collapsible) {
-                    collapsible.classList.toggle('active');
-                    const content = collapsible.nextElementSibling;
-                    if (content.style.maxHeight) {
-                        content.style.maxHeight = null;
-                    } else {
-                        const scrollH = content.scrollHeight + 40;
-                        content.style.maxHeight = scrollH + 'px';
-                        const parentContent = content.parentElement;
-                        if (parentContent.classList.contains('content') && parentContent.style.maxHeight) {
-                            parentContent.style.maxHeight = (parentContent.scrollHeight + scrollH) + 'px';
-                        }
-                    }
+                    e.preventDefault();
+                    toggleCollapsible(collapsible);
                     return;
                 }
 
@@ -875,7 +876,70 @@
                         updateCounters(checkbox, isChecked);
                     }
                 }
-            }, { passive: true });
+            });
+        }
+        
+        // Optimized toggle with requestAnimationFrame and better reflow management
+        function toggleCollapsible(collapsible) {
+            const content = collapsible.nextElementSibling;
+            const isActive = collapsible.classList.contains('active');
+            
+            if (isActive) {
+                // Collapsing
+                collapsible.classList.remove('active');
+                content.classList.remove('expanded');
+                
+                // Get current height for smooth collapse
+                const currentHeight = content.scrollHeight;
+                content.style.maxHeight = currentHeight + 'px';
+                
+                // Use rAF for smooth transition start
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        content.style.maxHeight = '0';
+                    });
+                });
+                
+                // Update parent after animation completes
+                const parentContent = content.parentElement;
+                if (parentContent && parentContent.classList.contains('content')) {
+                    setTimeout(() => updateParentHeight(parentContent), 360);
+                }
+            } else {
+                // Expanding
+                collapsible.classList.add('active');
+                
+                // Calculate and set target height
+                const targetHeight = content.scrollHeight;
+                content.style.maxHeight = targetHeight + 'px';
+                
+                // Set to none after transition for dynamic content
+                content.addEventListener('transitionend', function handler() {
+                    if (collapsible.classList.contains('active')) {
+                        content.classList.add('expanded');
+                        content.style.maxHeight = 'none';
+                    }
+                    content.removeEventListener('transitionend', handler);
+                }, { once: true });
+                
+                // Update parent immediately
+                const parentContent = content.parentElement;
+                if (parentContent && parentContent.classList.contains('content')) {
+                    requestAnimationFrame(() => updateParentHeight(parentContent));
+                }
+            }
+        }
+        
+        // Optimized parent height updates with checks
+        function updateParentHeight(parentContent) {
+            if (!parentContent.classList.contains('expanded') && !parentContent.style.maxHeight) return;
+            
+            const parentButton = parentContent.previousElementSibling;
+            if (!parentButton || !parentButton.classList.contains('active')) return;
+            
+            requestAnimationFrame(() => {
+                parentContent.style.maxHeight = parentContent.scrollHeight + 'px';
+            });
         }
 
         function handleError(error) {
