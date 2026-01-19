@@ -589,7 +589,13 @@
             }, 100);
         }
 
+        // Start auth initialization immediately (non-blocking)
+        let authInitPromise = null;
+        
         document.addEventListener('DOMContentLoaded', () => {
+            // Start auth init early without blocking
+            authInitPromise = Auth.init().catch(() => {});
+            
             fetch('a2z.json').then(response => {
                 if (!response.ok) throw new Error('Network response was not ok. Make sure a2z.json is in the same folder.');
                 return response.json();
@@ -597,8 +603,71 @@
                 const progress = loadCompletionState();
                 generateRoadmap(roadmapData, progress);
                 addEventListeners();
+                
+                // Sync cloud progress in background without blocking
+                if (authInitPromise) {
+                    authInitPromise.then(() => {
+                        syncCloudProgress();
+                    });
+                }
             }).catch(handleError);
         });
+        
+        async function syncCloudProgress() {
+            if (!Auth.currentUser) return;
+            
+            const syncIndicator = document.getElementById('sync-indicator');
+            syncIndicator.classList.add('syncing');
+            
+            try {
+                const cloudProgress = await Auth.loadProgressFromCloud();
+                
+                if (cloudProgress) {
+                    const localProgress = loadCompletionState();
+                    let hasChanges = false;
+                    const changedIds = [];
+                    
+                    for (const [key, value] of Object.entries(cloudProgress)) {
+                        if (value === true && !localProgress[key]) {
+                            localProgress[key] = true;
+                            hasChanges = true;
+                            changedIds.push(key);
+                        }
+                    }
+                    
+                    if (hasChanges) {
+                        progressCache = localProgress;
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(progressCache));
+                        
+                        // Update UI dynamically instead of reloading
+                        changedIds.forEach(id => {
+                            const row = document.querySelector(`[data-topic-id="${id}"]`);
+                            if (row) {
+                                row.classList.add('completed');
+                                const checkbox = row.querySelector('.status-checkbox');
+                                if (checkbox) checkbox.checked = true;
+                            }
+                        });
+                        
+                        // Update counters
+                        updateAllCounters();
+                    }
+                }
+            } catch (e) {
+                console.error('Cloud sync failed:', e);
+            } finally {
+                syncIndicator.classList.remove('syncing');
+            }
+        }
+        
+        function updateAllCounters() {
+            const checkboxes = document.querySelectorAll('.status-checkbox');
+            checkboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    updateCounters(checkbox, true);
+                }
+            });
+        }
 
         // Optimized alternate link generation with early returns
         function generateAlternateLink(postLink) {
@@ -809,7 +878,6 @@
         // Auth integration for roadmap page
         document.addEventListener('DOMContentLoaded', () => {
             const logoutBtn = document.getElementById('logout-btn');
-            const syncIndicator = document.getElementById('sync-indicator');
             const userAvatar = document.getElementById('user-avatar');
 
             // Handle logout
@@ -824,6 +892,8 @@
             saveCompletionState = function() {
                 originalSaveCompletionState();
                 
+                const syncIndicator = document.getElementById('sync-indicator');
+                
                 // Sync to cloud if logged in
                 if (Auth.currentUser) {
                     syncIndicator.classList.add('syncing');
@@ -835,48 +905,15 @@
                 }
             };
 
-            // Enhanced Auth initialization
-            const originalAuthInit = Auth.init.bind(Auth);
-            Auth.init = async function() {
-                await originalAuthInit();
-                
-                // Update avatar with user initial
-                if (this.currentUser && this.currentUser.email) {
-                    const initial = this.currentUser.email.charAt(0).toUpperCase();
-                    if (userAvatar) userAvatar.textContent = initial;
-                }
-                
-                // Load cloud progress if logged in
-                if (this.currentUser) {
-                    syncIndicator.classList.add('syncing');
-                    const cloudProgress = await this.loadProgressFromCloud();
-                    syncIndicator.classList.remove('syncing');
-                    
-                    if (cloudProgress) {
-                        // Merge cloud progress with local
-                        const localProgress = loadCompletionState();
-                        let hasChanges = false;
-                        
-                        for (const [key, value] of Object.entries(cloudProgress)) {
-                            if (value === true && !localProgress[key]) {
-                                localProgress[key] = true;
-                                hasChanges = true;
-                            }
-                        }
-                        
-                        if (hasChanges) {
-                            progressCache = localProgress;
-                            localStorage.setItem(STORAGE_KEY, JSON.stringify(progressCache));
-                            
-                            // Reload the page to reflect changes
-                            location.reload();
-                        }
+            // Update avatar with user initial when auth is ready
+            if (authInitPromise) {
+                authInitPromise.then(() => {
+                    if (Auth.currentUser && Auth.currentUser.email) {
+                        const initial = Auth.currentUser.email.charAt(0).toUpperCase();
+                        if (userAvatar) userAvatar.textContent = initial;
                     }
-                }
-            };
-
-            // Re-initialize auth
-            Auth.init();
+                });
+            }
         });
     </script>
 </body>
