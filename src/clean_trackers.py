@@ -1,76 +1,68 @@
+"""
+Clean tracking parameters from URLs in files.
+
+This script reads a file, finds all URLs, and recursively removes common
+tracking parameters (utm_source, fbclid, gclid, etc.) from their query strings.
+It includes special rules for specific sites and standardizes YouTube URLs.
+
+Usage:
+    python clean_trackers.py <input_file_path>
+    python clean_trackers.py a2z.json
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
 import re
 import sys
-from urllib.parse import urlparse, urlunparse, parse_qs, urlencode, unquote
+from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlencode, urlparse, urlunparse
 
-# --- Python URL Tracker Remover ---
-# This script reads a file, finds all URLs, and recursively removes 
-# common tracking parameters from their query strings, even if they are nested.
-# It includes special rules to strip parameters from specific sites and to
-# standardize YouTube URLs while preserving timestamps. It then saves the 
-# result to a new file.
+from .config import SITES_TO_STRIP_PARAMS, TRACKING_PARAMS
+from .utils import setup_logging
 
-# --- USAGE ---
-#   python clean_urls.py <input_file_path>
-#
-#   Example:
-#   python clean_urls.py a2z.json
-#
-#   This will create a new file named 'a2z_cleaned.json'.
+LOG = logging.getLogger(__name__)
 
-# List of common tracking parameters to be removed from URLs.
-TRACKING_PARAMS = {
-    # Google Analytics
-    'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-    # Google Ads
-    'gclid',
-    # Facebook
-    'fbclid',
-    # Microsoft Advertising
-    'msclkid',
-    # Mailchimp
-    'mc_cid', 'mc_eid',
-    # Other common trackers
-    '_ga',
-}
 
-# List of sites where all query parameters and fragments should be stripped.
-SITES_TO_STRIP = [
-    'geeksforgeeks.org',
-    'codingninjas.com',
-    'leetcode.com',
-]
-
-def clean_url(url):
+def clean_url(url: str) -> str:
     """
     Recursively removes known tracking parameters from a URL.
-    Includes special rules to strip all parameters and fragments from specific sites,
-    and to standardize YouTube URLs, keeping only the video ID and timestamp.
+
+    Includes special rules to strip all parameters and fragments from specific
+    sites, and to standardize YouTube URLs, keeping only the video ID and timestamp.
+
+    Args:
+        url: The URL to clean.
+
+    Returns:
+        The cleaned URL.
     """
     try:
         # 1. Parse the URL into its components (scheme, netloc, path, etc.)
         parsed_url = urlparse(url)
-        
+
         # --- Site-Specific Rules ---
-        # Rule for sites in SITES_TO_STRIP: remove all query params and fragments.
-        if any(site in parsed_url.netloc for site in SITES_TO_STRIP):
-            cleaned_url_parts = parsed_url._replace(query='', fragment='')
+        # Rule for sites in SITES_TO_STRIP_PARAMS: remove all query params and fragments.
+        if any(site in parsed_url.netloc for site in SITES_TO_STRIP_PARAMS):
+            cleaned_url_parts = parsed_url._replace(query="", fragment="")
             return urlunparse(cleaned_url_parts)
-        
+
         # Rule for YouTube: standardize the URL, keeping only 'v' and 't' parameters.
-        if 'youtube.com' in parsed_url.netloc or 'youtu.be' in parsed_url.netloc:
+        if "youtube.com" in parsed_url.netloc or "youtu.be" in parsed_url.netloc:
             video_id = None
             timestamp = None
             query_params = parse_qs(parsed_url.query)
 
-            if 'youtube.com' in parsed_url.netloc:
-                if 'v' in query_params:
-                    video_id = query_params['v'][0]
-            elif 'youtu.be' in parsed_url.netloc:
-                video_id = parsed_url.path.lstrip('/')
-            
+            if "youtube.com" in parsed_url.netloc:
+                if "v" in query_params:
+                    video_id = query_params["v"][0]
+            elif "youtu.be" in parsed_url.netloc:
+                video_id = parsed_url.path.lstrip("/")
+
             # Check for and preserve the timestamp parameter 't'
-            if 't' in query_params:
-                timestamp = query_params['t'][0]
+            if "t" in query_params:
+                timestamp = query_params["t"][0]
 
             if video_id:
                 # Build the clean URL, adding the timestamp back if it exists.
@@ -94,7 +86,7 @@ def clean_url(url):
                     # Decode the value in case it's a URL-encoded URL.
                     decoded_value = unquote(value)
                     # Check if the value itself is a URL that might have trackers.
-                    if decoded_value.startswith('http://') or decoded_value.startswith('https://'):
+                    if decoded_value.startswith(("http://", "https://")):
                         # If it is, clean it recursively.
                         cleaned_values.append(clean_url(decoded_value))
                     else:
@@ -107,69 +99,101 @@ def clean_url(url):
 
         # 5. Reconstruct the URL with the cleaned query string
         cleaned_url_parts = parsed_url._replace(query=cleaned_query)
-        
+
         return urlunparse(cleaned_url_parts)
     except Exception as e:
         # If any error occurs during parsing, return the original URL.
-        print(f"⚠️  Could not parse or clean URL {url}: {e}")
+        LOG.warning("Could not parse or clean URL %s: %s", url, e)
         return url
 
-def main():
-    """
-    Main function to execute the script logic.
-    """
-    # 1. Input Validation
-    if len(sys.argv) < 2:
-        print("Usage: python clean_urls.py <input_file_path>")
-        sys.exit(1)
 
-    input_file = sys.argv[1]
+def clean_urls_in_file(input_path: Path, output_path: Path | None = None) -> None:
+    """
+    Cleans all URLs in a file and saves the result.
 
-    # 2. Read the file content
+    Args:
+        input_path: Path to the input file.
+        output_path: Path for output file. If None, appends '_cleaned' to input name.
+    """
+    if output_path is None:
+        output_path = input_path.with_stem(f"{input_path.stem}_cleaned")
+
     try:
-        with open(input_file, 'r', encoding='utf-8') as f:
-            content = f.read()
+        content = input_path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        print(f"Error: File not found at '{input_file}'")
+        LOG.error("File not found at '%s'", input_path)
         sys.exit(1)
     except Exception as e:
-        print(f"An error occurred while reading the file: {e}")
+        LOG.error("Error reading file: %s", e)
         sys.exit(1)
 
-    # 3. Find all unique URLs in the content.
-    # This regex is broad to catch any URL-like string inside quotes.
+    # Find all unique URLs in the content.
     urls = set(re.findall(r'https?://[^\s"]+', content))
 
     if not urls:
-        print("No URLs found in the file.")
+        LOG.info("No URLs found in the file.")
         return
 
-    print(f"🔎 Found {len(urls)} unique URLs. Cleaning them now...")
+    LOG.info("Found %d unique URLs. Cleaning them now...", len(urls))
 
-    # 4. Create a mapping from original URLs to their cleaned versions.
+    # Create a mapping from original URLs to their cleaned versions.
     url_map = {}
     for url in urls:
         cleaned = clean_url(url)
         # Only add to the map if the URL was actually changed.
         if url != cleaned:
             url_map[url] = cleaned
-            print(f"Original: {url}\nCleaned:  {cleaned}\n")
+            LOG.debug("Original: %s\nCleaned:  %s\n", url, cleaned)
 
-    # 5. Replace all tracked URLs in the original content.
-    print("\n🔄 Replacing tracked URLs in the content...")
+    # Replace all tracked URLs in the original content.
+    LOG.info("Replacing %d tracked URLs in the content...", len(url_map))
     for original, cleaned in url_map.items():
-        # We replace the original URL string to ensure we don't accidentally
+        # Replace the original URL string to ensure we don't accidentally
         # modify parts of other, longer URLs.
         content = content.replace(f'"{original}"', f'"{cleaned}"')
 
-    # 6. Save the modified content to a new file.
-    output_file = f"{input_file.split('.')[0]}_cleaned.json"
+    # Save the modified content to the output file.
     try:
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(content)
-        print(f"\n✨ Success! Modified content saved to '{output_file}'")
+        output_path.write_text(content, encoding="utf-8")
+        LOG.info("Success! Modified content saved to '%s'", output_path)
     except Exception as e:
-        print(f"\n❌ Error saving the file: {e}")
+        LOG.error("Error saving the file: %s", e)
+        sys.exit(1)
+
+
+def main() -> None:
+    """Main entry point for the clean_trackers script."""
+    parser = argparse.ArgumentParser(
+        description="Remove tracking parameters from URLs in a file",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python -m src.clean_trackers a2z.json
+  python -m src.clean_trackers input.json -o output.json
+        """,
+    )
+    parser.add_argument(
+        "input_file",
+        type=Path,
+        help="Path to the input file",
+    )
+    parser.add_argument(
+        "-o", "--output",
+        type=Path,
+        default=None,
+        help="Path to the output file (default: <input>_cleaned.<ext>)",
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose debug output",
+    )
+
+    args = parser.parse_args()
+    setup_logging(verbose=args.verbose)
+
+    clean_urls_in_file(args.input_file, args.output)
+
 
 if __name__ == "__main__":
     main()

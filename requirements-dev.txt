@@ -1,0 +1,19 @@
+# Development dependencies
+-r requirements.txt
+
+# Testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Linting & Formatting
+ruff>=0.1.0
+
+# Type checking
+mypy>=1.0.0
+types-requests>=2.28.0
+types-beautifulsoup4>=4.11.0
+types-tqdm>=4.64.0
+
+# Documentation
+mkdocs>=1.4.0
+mkdocs-material>=9.0.0
