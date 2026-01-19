@@ -4,7 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
     <title>A2Z DSA Course Roadmap</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         /* ==========================================================================
@@ -40,8 +44,8 @@
             --radius-lg: 8px;
             
             --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-            --shadow-hover: 0 0 25px -5px rgba(59, 130, 246, 0.25);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-hover: 0 0 25px -5px rgb(59 130 246 / 0.25);
         }
 
         /* Dark Theme Support */
@@ -143,13 +147,12 @@
             color: var(--text-primary);
             background-color: var(--bg-surface);
             text-align: left;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
             cursor: pointer;
             font-weight: 600;
             font-family: inherit;
             gap: 1rem;
             contain: layout style paint;
-            will-change: border-color, box-shadow;
         }
 
         .collapsible {
@@ -169,14 +172,12 @@
         .sub-collapsible::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
+            inset: 0;
             z-index: -1;
-            width: var(--progress-width, 0%);
-            height: 100%;
+            transform: scaleX(var(--progress-scale, 0));
+            transform-origin: left;
             background-color: var(--completed-bg);
-            transition: width 0.4s ease-out;
-            opacity: 1;
+            transition: transform 0.3s ease-out;
         }
 
         .collapsible:hover,
@@ -228,15 +229,20 @@
 
         .content,
         .sub-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-in-out;
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.25s ease-out;
             contain: content;
         }
         
-        .collapsible.active ~ .content,
-        .sub-collapsible.active ~ .sub-content {
-            will-change: max-height;
+        .content > *,
+        .sub-content > * {
+            overflow: hidden;
+        }
+        
+        .collapsible.active + .content,
+        .sub-collapsible.active + .sub-content {
+            grid-template-rows: 1fr;
         }
 
         .content {
@@ -259,6 +265,8 @@
             border-collapse: collapse;
             font-size: 0.9375rem;
             contain: layout style;
+            content-visibility: auto;
+            contain-intrinsic-size: auto 500px;
         }
 
         th, td {
@@ -501,8 +509,7 @@
             border: 2px solid var(--border-color);
             border-top-color: var(--primary-color);
             border-radius: 50%;
-            animasn 0.8s linear infinite;
-            will-change: transform;
+            animation: spin 0.8s linear infinite;
         }
 
         @keyframes spin {
@@ -559,21 +566,25 @@
 
         // Pre-built logo HTML strings for faster lookups
         const platformLogos = {
-            BLOG: '<img src="./assets/logo/post.svg" alt="BLOG">',
-            YT: '<img src="./assets/logo/yt.svg" alt="YT">',
-            TUF: '<img src="./assets/logo/tuf.svg" alt="TUF">',
-            GFG: '<img src="./assets/logo/gfg.svg" alt="GFG">',
-            CN: '<img src="./assets/logo/cn.svg" alt="CN">',
-            LC: '<img src="./assets/logo/lc.svg" alt="LC">',
-            ALT: '<img src="./assets/logo/alt.svg" alt="ALT">'
+            BLOG: '<img src="./assets/logo/post.svg" alt="BLOG" loading="lazy">',
+            YT: '<img src="./assets/logo/yt.svg" alt="YT" loading="lazy">',
+            TUF: '<img src="./assets/logo/tuf.svg" alt="TUF" loading="lazy">',
+            GFG: '<img src="./assets/logo/gfg.svg" alt="GFG" loading="lazy">',
+            CN: '<img src="./assets/logo/cn.svg" alt="CN" loading="lazy">',
+            LC: '<img src="./assets/logo/lc.svg" alt="LC" loading="lazy">',
+            ALT: '<img src="./assets/logo/alt.svg" alt="ALT" loading="lazy">'
         };
 
-        // Pre-computed difficulty classes array
+        // Pre-computed difficulty classes
         const difficultyClasses = ['difficulty-easy', 'difficulty-medium', 'difficulty-hard'];
 
-        // In-memory progress cache to avoid repeated localStorage reads
+        // In-memory progress cache
         let progressCache = null;
         let saveTimeout = null;
+        
+        // Cached DOM elements
+        let roadmapContainer = null;
+        let syncIndicator = null;
 
         // Optimized localStorage operations with caching
         function loadCompletionState() {
@@ -604,10 +615,14 @@
         let authInitPromise = null;
         
         document.addEventListener('DOMContentLoaded', () => {
+            // Cache DOM elements early
+            roadmapContainer = document.getElementById('roadmap-container');
+            syncIndicator = document.getElementById('sync-indicator');
+            
             // Start auth init early without blocking
             authInitPromise = Auth.init().catch(() => {});
             
-            fetch('a2z.json').then(response => {
+            fetch('a2z.json', { cache: 'default' }).then(response => {
                 if (!response.ok) throw new Error('Network response was not ok. Make sure a2z.json is in the same folder.');
                 return response.json();
             }).then(roadmapData => {
@@ -615,59 +630,53 @@
                 generateRoadmap(roadmapData, progress);
                 addEventListeners();
                 
-                // Sync cloud progress in background without blocking
-                if (authInitPromise) {
-                    authInitPromise.then(() => {
-                        syncCloudProgress();
-                    });
-                }
+                // Sync cloud progress in background
+                authInitPromise?.then(syncCloudProgress);
             }).catch(handleError);
-        });
+        }, { once: true });
         
         async function syncCloudProgress() {
             if (!Auth.currentUser) return;
             
-            const syncIndicator = document.getElementById('sync-indicator');
-            syncIndicator.classList.add('syncing');
+            syncIndicator?.classList.add('syncing');
             
             try {
                 const cloudProgress = await Auth.loadProgressFromCloud();
                 
                 if (cloudProgress) {
                     const localProgress = loadCompletionState();
-                    let hasChanges = false;
                     const changedIds = [];
                     
-                    for (const [key, value] of Object.entries(cloudProgress)) {
-                        if (value === true && !localProgress[key]) {
+                    for (const key in cloudProgress) {
+                        if (cloudProgress[key] === true && !localProgress[key]) {
                             localProgress[key] = true;
-                            hasChanges = true;
                             changedIds.push(key);
                         }
                     }
                     
-                    if (hasChanges) {
+                    if (changedIds.length) {
                         progressCache = localProgress;
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(progressCache));
                         
-                        // Update UI dynamically instead of reloading
-                        changedIds.forEach(id => {
-                            const row = document.querySelector(`[data-topic-id="${id}"]`);
-                            if (row) {
-                                row.classList.add('completed');
-                                const checkbox = row.querySelector('.status-checkbox');
-                                if (checkbox) checkbox.checked = true;
+                        // Batch DOM updates
+                        requestAnimationFrame(() => {
+                            const len = changedIds.length;
+                            for (let i = 0; i < len; i++) {
+                                const row = document.querySelector(`[data-topic-id="${changedIds[i]}"]`);
+                                if (row) {
+                                    row.classList.add('completed');
+                                    const checkbox = row.querySelector('.status-checkbox');
+                                    if (checkbox) checkbox.checked = true;
+                                }
                             }
+                            updateAllCounters();
                         });
-                        
-                        // Update counters
-                        updateAllCounters();
                     }
                 }
             } catch (e) {
                 console.error('Cloud sync failed:', e);
             } finally {
-                syncIndicator.classList.remove('syncing');
+                syncIndicator?.classList.remove('syncing');
             }
         }
         
@@ -709,14 +718,20 @@
 
         function generateRoadmap(data, progress) {
             const container = document.getElementById('roadmap-content');
-            const parts = ['<h1>A2Z DSA Course Roadmap</h1>'];
+            const frag = document.createDocumentFragment();
+            const h1 = document.createElement('h1');
+            h1.textContent = 'A2Z DSA Course Roadmap';
+            frag.appendChild(h1);
+            
             const dataLen = data.length;
 
             for (let i = 0; i < dataLen; i++) {
                 const step = data[i];
                 let totalStepTopics = 0;
                 let completedStepTopics = 0;
-                const subParts = [];
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'content';
+                const contentInner = document.createElement('div');
 
                 if (step.sub_steps) {
                     const subSteps = step.sub_steps;
@@ -728,13 +743,11 @@
                         const totalSubStepTopics = topics.length;
                         let completedSubStepTopics = 0;
 
-                        // Count completed in single pass
                         for (let k = 0; k < totalSubStepTopics; k++) {
                             if (progress[topics[k].id]) completedSubStepTopics++;
                         }
 
-                        const isSubStepComplete = totalSubStepTopics > 0 && completedSubStepTopics === totalSubStepTopics;
-                        const subStepPercentage = totalSubStepTopics > 0 ? (completedSubStepTopics / totalSubStepTopics) * 100 : 0;
+                        const subStepPercentage = totalSubStepTopics > 0 ? completedSubStepTopics / totalSubStepTopics : 0;
                         totalStepTopics += totalSubStepTopics;
                         completedStepTopics += completedSubStepTopics;
 
@@ -757,8 +770,8 @@
                             }
 
                             rowParts.push(
-                                `<tr class="${diffClass}${isCompleted ? ' completed' : ''}" data-topic-id="${topic.id}">`,
-                                `<td class="topic-cell" title="${tags}"><div class="topic-title">${topic.question_title}</div></td>`,
+                                '<tr class="', diffClass, isCompleted ? ' completed' : '', '" data-topic-id="', topic.id, '">',
+                                '<td class="topic-cell" title="', tags, '"><div class="topic-title">', topic.question_title, '</div></td>',
                                 createLinkCell(topic.lc_link, 'LC'),
                                 createLinkCell(topic.gfg_link, 'GFG'),
                                 createLinkCell(topic.cs_link, 'CN'),
@@ -766,47 +779,48 @@
                                 createLinkCell(topic.post_link, 'BLOG'),
                                 createLinkCell(alternateLink, 'ALT'),
                                 createLinkCell(topic.yt_link, 'YT'),
-                                `<td class="status-cell"><input type="checkbox" class="status-checkbox" data-id="${topic.id}"${isCompleted ? ' checked' : ''}></td></tr>`
+                                '<td class="status-cell"><input type="checkbox" class="status-checkbox" data-id="', topic.id, '"', isCompleted ? ' checked' : '', '></td></tr>'
                             );
                         }
+                        
+                        const isSubComplete = totalSubStepTopics > 0 && completedSubStepTopics === totalSubStepTopics;
 
-                        subParts.push(
-                            `<button type="button" class="sub-collapsible${isSubStepComplete ? ' completed' : ''}" style="--progress-width:${subStepPercentage}%" data-step="${step.step_no}" data-substep="${subStep.sub_step_no}">`,
-                            `<span class="collapsible-title">${subStep.sub_step_no}. ${subStep.sub_step_title.replace(/\n/g, ' ')}</span>`,
-                            `<span class="progress-counter">${completedSubStepTopics}/${totalSubStepTopics}</span></button>`,
-                            '<div class="sub-content"><div class="table-container"><table><thead><tr>',
-                            '<th>Topic</th><th title="LeetCode">Leetcode</th><th title="GeeksForGeeks">GFG</th>',
-                            '<th title="CodingNinjas">CN</th><th title="TakeUForward+">TUF</th><th title="Blog">Blog</th>',
-                            '<th title="Alternate Article">Blog</th><th title="YouTube">YouTube</th><th>Done</th>',
-                            '</tr></thead><tbody>',
-                            rowParts.join(''),
-                            '</tbody></table></div></div>'
+                        contentInner.insertAdjacentHTML('beforeend',
+                            '<button type="button" class="sub-collapsible' + (isSubComplete ? ' completed' : '') + '" style="--progress-scale:' + subStepPercentage + '" data-step="' + step.step_no + '" data-substep="' + subStep.sub_step_no + '">' +
+                            '<span class="collapsible-title">' + subStep.sub_step_no + '. ' + subStep.sub_step_title.replace(/\n/g, ' ') + '</span>' +
+                            '<span class="progress-counter">' + completedSubStepTopics + '/' + totalSubStepTopics + '</span></button>' +
+                            '<div class="sub-content"><div><div class="table-container"><table><thead><tr>' +
+                            '<th>Topic</th><th title="LeetCode">Leetcode</th><th title="GeeksForGeeks">GFG</th>' +
+                            '<th title="CodingNinjas">CN</th><th title="TakeUForward+">TUF</th><th title="Blog">Blog</th>' +
+                            '<th title="Alternate Article">Blog</th><th title="YouTube">YouTube</th><th>Done</th>' +
+                            '</tr></thead><tbody>' + rowParts.join('') + '</tbody></table></div></div></div>'
                         );
                     }
                 }
 
                 const isStepComplete = totalStepTopics > 0 && completedStepTopics === totalStepTopics;
-                const stepPercentage = totalStepTopics > 0 ? (completedStepTopics / totalStepTopics) * 100 : 0;
+                const stepPercentage = totalStepTopics > 0 ? completedStepTopics / totalStepTopics : 0;
 
-                parts.push(
-                    `<button type="button" class="collapsible${isStepComplete ? ' completed' : ''}" style="--progress-width:${stepPercentage}%" data-step="${step.step_no}">`,
-                    `<span class="collapsible-title">Step ${step.step_no}: ${step.step_title}</span>`,
-                    `<span class="progress-counter">${completedStepTopics}/${totalStepTopics}</span></button>`,
-                    '<div class="content">',
-                    subParts.join(''),
-                    '</div>'
-                );
+                const stepBtn = document.createElement('button');
+                stepBtn.type = 'button';
+                stepBtn.className = 'collapsible' + (isStepComplete ? ' completed' : '');
+                stepBtn.style.setProperty('--progress-scale', stepPercentage);
+                stepBtn.dataset.step = step.step_no;
+                stepBtn.innerHTML = '<span class="collapsible-title">Step ' + step.step_no + ': ' + step.step_title + '</span><span class="progress-counter">' + completedStepTopics + '/' + totalStepTopics + '</span>';
+                
+                contentDiv.appendChild(contentInner);
+                frag.appendChild(stepBtn);
+                frag.appendChild(contentDiv);
             }
 
-            container.innerHTML = parts.join('');
+            container.replaceChildren(frag);
         }
 
         function updateCounters(checkbox, isChecked) {
-            // Use requestAnimationFrame to batch DOM updates
             requestAnimationFrame(() => {
                 const row = checkbox.parentElement.parentElement;
                 const tbody = row.parentElement;
-                const subContent = tbody.parentElement.parentElement.parentElement;
+                const subContent = tbody.closest('.sub-content');
                 const subStepButton = subContent.previousElementSibling;
                 
                 // Update sub-step counter
@@ -818,13 +832,13 @@
                 }
                 
                 const subStepCounter = subStepButton.querySelector('.progress-counter');
-                subStepCounter.textContent = `${completedSubStep}/${totalSubStep}`;
-                const subStepPercentage = totalSubStep > 0 ? (completedSubStep / totalSubStep) * 100 : 0;
-                subStepButton.style.setProperty('--progress-width', `${subStepPercentage}%`);
+                subStepCounter.textContent = completedSubStep + '/' + totalSubStep;
+                const subStepPercentage = totalSubStep > 0 ? completedSubStep / totalSubStep : 0;
+                subStepButton.style.setProperty('--progress-scale', subStepPercentage);
                 subStepButton.classList.toggle('completed', totalSubStep > 0 && completedSubStep === totalSubStep);
 
                 // Update main step counter
-                const mainContent = subContent.parentElement;
+                const mainContent = subContent.closest('.content');
                 const mainStepButton = mainContent.previousElementSibling;
                 const allCheckboxes = mainContent.querySelectorAll('.status-checkbox');
                 const totalStep = allCheckboxes.length;
@@ -834,25 +848,23 @@
                 }
 
                 const mainStepCounter = mainStepButton.querySelector('.progress-counter');
-                mainStepCounter.textContent = `${completedStep}/${totalStep}`;
-                const stepPercentage = totalStep > 0 ? (completedStep / totalStep) * 100 : 0;
-                mainStepButton.style.setProperty('--progress-width', `${stepPercentage}%`);
+                mainStepCounter.textContent = completedStep + '/' + totalStep;
+                const stepPercentage = totalStep > 0 ? completedStep / totalStep : 0;
+                mainStepButton.style.setProperty('--progress-scale', stepPercentage);
                 mainStepButton.classList.toggle('completed', totalStep > 0 && completedStep === totalStep);
             });
         }
 
         function addEventListeners() {
-            const container = document.getElementById('roadmap-container');
-            
-            // Optimized click handler with early exits
-            container.addEventListener('click', function (e) {
+            // Optimized click handler with event delegation
+            roadmapContainer.addEventListener('click', function(e) {
                 const target = e.target;
                 
                 // Handle collapsible toggle
                 const collapsible = target.closest('.collapsible, .sub-collapsible');
                 if (collapsible) {
                     e.preventDefault();
-                    toggleCollapsible(collapsible);
+                    collapsible.classList.toggle('active');
                     return;
                 }
 
@@ -873,70 +885,16 @@
             });
         }
         
-        // Smooth toggle with minimal reflows
-        function toggleCollapsible(collapsible) {
-            const content = collapsible.nextElementSibling;
-            const isActive = collapsible.classList.contains('active');
-            
-            collapsible.classList.toggle('active');
-            
-            if (!isActive) {
-                // Expanding - set height immediately
-                content.style.maxHeight = content.scrollHeight + 'px';
-                
-                // After transition completes, set to auto for dynamic content
-                const transitionHandler = () => {
-                    if (collapsible.classList.contains('active')) {
-                        content.style.maxHeight = 'none';
-                    }
-                    content.removeEventListener('transitionend', transitionHandler);
-                };
-                content.addEventListener('transitionend', transitionHandler, { once: true });
-                
-                // Update parent height
-                const parentContent = content.parentElement;
-                if (parentContent && parentContent.classList.contains('content')) {
-                    updateParentHeight(parentContent);
-                }
-            } else {
-                // Collapsing - snap to current height first, then animate to 0
-                content.style.maxHeight = content.scrollHeight + 'px';
-                
-                // Trigger reflow
-                void content.offsetHeight;
-                
-                // Now animate to 0
-                content.style.maxHeight = '0';
-                
-                // Update parent after animation
-                const parentContent = content.parentElement;
-                if (parentContent && parentContent.classList.contains('content')) {
-                    setTimeout(() => updateParentHeight(parentContent), 310);
-                }
-            }
-        }
-        
-        // Update parent container height when child changes
-        function updateParentHeight(parentContent) {
-            const parentButton = parentContent.previousElementSibling;
-            if (!parentButton || !parentButton.classList.contains('active')) return;
-            
-            const newHeight = parentContent.scrollHeight;
-            if (newHeight > 0) {
-                parentContent.style.maxHeight = newHeight + 'px';
-            }
-        }
-
         function handleError(error) {
             console.error('Error:', error);
             document.getElementById('roadmap-content').innerHTML = 
-                `<h1>Error</h1><p>Could not load the roadmap. Please ensure 'a2z.json' is in the same directory and correctly formatted.</p><p><em>${error.message}</em></p>`;
+                '<h1>Error</h1><p>Could not load the roadmap. Please ensure \'a2z.json\' is in the same directory and correctly formatted.</p><p><em>' + error.message + '</em></p>';
         }
     </script>
 
     <!-- Supabase JS SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/supabase-config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+    <script src="js/supabase-config.js" defer></script>
     <script>
         // Auth integration for roadmap page
         document.addEventListener('DOMContentLoaded', () => {
@@ -944,40 +902,31 @@
             const userAvatar = document.getElementById('user-avatar');
 
             // Handle logout
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', async () => {
-                    await Auth.signOut();
-                });
-            }
+            logoutBtn?.addEventListener('click', async () => {
+                await Auth.signOut();
+            });
 
             // Override saveCompletionState to sync with cloud
             const originalSaveCompletionState = saveCompletionState;
             saveCompletionState = function() {
                 originalSaveCompletionState();
                 
-                const syncIndicator = document.getElementById('sync-indicator');
-                
                 // Sync to cloud if logged in
                 if (Auth.currentUser) {
-                    syncIndicator.classList.add('syncing');
+                    syncIndicator?.classList.add('syncing');
                     Auth.saveProgressToCloud(progressCache).finally(() => {
-                        setTimeout(() => {
-                            syncIndicator.classList.remove('syncing');
-                        }, 500);
+                        setTimeout(() => syncIndicator?.classList.remove('syncing'), 500);
                     });
                 }
             };
 
             // Update avatar with user initial when auth is ready
-            if (authInitPromise) {
-                authInitPromise.then(() => {
-                    if (Auth.currentUser && Auth.currentUser.email) {
-                        const initial = Auth.currentUser.email.charAt(0).toUpperCase();
-                        if (userAvatar) userAvatar.textContent = initial;
-                    }
-                });
-            }
-        });
+            authInitPromise?.then(() => {
+                if (Auth.currentUser?.email && userAvatar) {
+                    userAvatar.textContent = Auth.currentUser.email.charAt(0).toUpperCase();
+                }
+            });
+        }, { once: true });
     </script>
 </body>
 
