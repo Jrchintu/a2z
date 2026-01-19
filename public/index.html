@@ -100,7 +100,8 @@
             border: 1px solid var(--border-color);
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-md);
-            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            transition: box-shadow 0.2s, border-color 0.2s;
+            contain: layout style paint;
         }
 
         /* Enhanced hover for desktop only */
@@ -147,6 +148,8 @@
             font-weight: 600;
             font-family: inherit;
             gap: 1rem;
+            contain: layout style paint;
+            will-change: border-color, box-shadow;
         }
 
         .collapsible {
@@ -228,6 +231,7 @@
             max-height: 0;
             overflow: hidden;
             transition: max-height 0.4s ease-in-out;
+            contain: content;
         }
 
         .content {
@@ -249,6 +253,7 @@
             min-width: 800px;
             border-collapse: collapse;
             font-size: 0.9375rem;
+            contain: layout style;
         }
 
         th, td {
@@ -492,6 +497,7 @@
             border-top-color: var(--primary-color);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
+            will-change: transform;
         }
 
         @keyframes spin {
@@ -661,11 +667,13 @@
         }
         
         function updateAllCounters() {
-            const checkboxes = document.querySelectorAll('.status-checkbox');
-            checkboxes.forEach(checkbox => {
-                if (checkbox.checked) {
-                    updateCounters(checkbox, true);
-                }
+            requestAnimationFrame(() => {
+                const checkboxes = document.querySelectorAll('.status-checkbox');
+                checkboxes.forEach(checkbox => {
+                    if (checkbox.checked) {
+                        updateCounters(checkbox, true);
+                    }
+                });
             });
         }
 
@@ -789,43 +797,49 @@
         }
 
         function updateCounters(checkbox, isChecked) {
-            const row = checkbox.parentElement.parentElement;
-            const tbody = row.parentElement;
-            const subContent = tbody.parentElement.parentElement.parentElement;
-            const subStepButton = subContent.previousElementSibling;
-            
-            // Update sub-step counter
-            const checkboxes = tbody.querySelectorAll('.status-checkbox');
-            const totalSubStep = checkboxes.length;
-            let completedSubStep = 0;
-            for (let i = 0; i < totalSubStep; i++) {
-                if (progressCache[checkboxes[i].dataset.id]) completedSubStep++;
-            }
-            
-            subStepButton.querySelector('.progress-counter').textContent = `${completedSubStep}/${totalSubStep}`;
-            const subStepPercentage = totalSubStep > 0 ? (completedSubStep / totalSubStep) * 100 : 0;
-            subStepButton.style.setProperty('--progress-width', `${subStepPercentage}%`);
-            subStepButton.classList.toggle('completed', totalSubStep > 0 && completedSubStep === totalSubStep);
+            // Use requestAnimationFrame to batch DOM updates
+            requestAnimationFrame(() => {
+                const row = checkbox.parentElement.parentElement;
+                const tbody = row.parentElement;
+                const subContent = tbody.parentElement.parentElement.parentElement;
+                const subStepButton = subContent.previousElementSibling;
+                
+                // Update sub-step counter
+                const checkboxes = tbody.querySelectorAll('.status-checkbox');
+                const totalSubStep = checkboxes.length;
+                let completedSubStep = 0;
+                for (let i = 0; i < totalSubStep; i++) {
+                    if (progressCache[checkboxes[i].dataset.id]) completedSubStep++;
+                }
+                
+                const subStepCounter = subStepButton.querySelector('.progress-counter');
+                subStepCounter.textContent = `${completedSubStep}/${totalSubStep}`;
+                const subStepPercentage = totalSubStep > 0 ? (completedSubStep / totalSubStep) * 100 : 0;
+                subStepButton.style.setProperty('--progress-width', `${subStepPercentage}%`);
+                subStepButton.classList.toggle('completed', totalSubStep > 0 && completedSubStep === totalSubStep);
 
-            // Update main step counter
-            const mainContent = subContent.parentElement;
-            const mainStepButton = mainContent.previousElementSibling;
-            const allCheckboxes = mainContent.querySelectorAll('.status-checkbox');
-            const totalStep = allCheckboxes.length;
-            let completedStep = 0;
-            for (let i = 0; i < totalStep; i++) {
-                if (progressCache[allCheckboxes[i].dataset.id]) completedStep++;
-            }
+                // Update main step counter
+                const mainContent = subContent.parentElement;
+                const mainStepButton = mainContent.previousElementSibling;
+                const allCheckboxes = mainContent.querySelectorAll('.status-checkbox');
+                const totalStep = allCheckboxes.length;
+                let completedStep = 0;
+                for (let i = 0; i < totalStep; i++) {
+                    if (progressCache[allCheckboxes[i].dataset.id]) completedStep++;
+                }
 
-            mainStepButton.querySelector('.progress-counter').textContent = `${completedStep}/${totalStep}`;
-            const stepPercentage = totalStep > 0 ? (completedStep / totalStep) * 100 : 0;
-            mainStepButton.style.setProperty('--progress-width', `${stepPercentage}%`);
-            mainStepButton.classList.toggle('completed', totalStep > 0 && completedStep === totalStep);
+                const mainStepCounter = mainStepButton.querySelector('.progress-counter');
+                mainStepCounter.textContent = `${completedStep}/${totalStep}`;
+                const stepPercentage = totalStep > 0 ? (completedStep / totalStep) * 100 : 0;
+                mainStepButton.style.setProperty('--progress-width', `${stepPercentage}%`);
+                mainStepButton.classList.toggle('completed', totalStep > 0 && completedStep === totalStep);
+            });
         }
 
         function addEventListeners() {
             const container = document.getElementById('roadmap-container');
             
+            // Use passive event listener for better scroll performance
             container.addEventListener('click', function (e) {
                 const target = e.target;
                 
@@ -861,7 +875,7 @@
                         updateCounters(checkbox, isChecked);
                     }
                 }
-            });
+            }, { passive: true });
         }
 
         function handleError(error) {

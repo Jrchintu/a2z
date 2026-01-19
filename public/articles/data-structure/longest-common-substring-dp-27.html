@@ -94,7 +94,8 @@
             border: 1px solid var(--border-color);
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-md);
-            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            transition: box-shadow 0.2s, border-color 0.2s;
+            contain: layout style paint;
         }
 
         /* Enhanced hover for desktop only */
@@ -275,6 +276,7 @@
             overflow: hidden;
             background-color: var(--bg-surface);
             transition: box-shadow 0.2s;
+            contain: layout style paint;
         }
         
         details:hover {
