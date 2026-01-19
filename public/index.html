@@ -230,19 +230,13 @@
         .sub-content {
             max-height: 0;
             overflow: hidden;
-            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: max-height 0.3s ease-in-out;
             contain: content;
         }
         
-        .collapsible.active + .content,
-        .sub-collapsible.active + .sub-content {
+        .collapsible.active ~ .content,
+        .sub-collapsible.active ~ .sub-content {
             will-change: max-height;
-        }
-        
-        .content.expanded,
-        .sub-content.expanded {
-            overflow: visible;
-            will-change: auto;
         }
 
         .content {
@@ -507,7 +501,7 @@
             border: 2px solid var(--border-color);
             border-top-color: var(--primary-color);
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animasn 0.8s linear infinite;
             will-change: transform;
         }
 
@@ -879,67 +873,58 @@
             });
         }
         
-        // Optimized toggle with requestAnimationFrame and better reflow management
+        // Smooth toggle with minimal reflows
         function toggleCollapsible(collapsible) {
             const content = collapsible.nextElementSibling;
             const isActive = collapsible.classList.contains('active');
             
-            if (isActive) {
-                // Collapsing
-                collapsible.classList.remove('active');
-                content.classList.remove('expanded');
+            collapsible.classList.toggle('active');
+            
+            if (!isActive) {
+                // Expanding - set height immediately
+                content.style.maxHeight = content.scrollHeight + 'px';
                 
-                // Get current height for smooth collapse
-                const currentHeight = content.scrollHeight;
-                content.style.maxHeight = currentHeight + 'px';
-                
-                // Use rAF for smooth transition start
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        content.style.maxHeight = '0';
-                    });
-                });
-                
-                // Update parent after animation completes
-                const parentContent = content.parentElement;
-                if (parentContent && parentContent.classList.contains('content')) {
-                    setTimeout(() => updateParentHeight(parentContent), 360);
-                }
-            } else {
-                // Expanding
-                collapsible.classList.add('active');
-                
-                // Calculate and set target height
-                const targetHeight = content.scrollHeight;
-                content.style.maxHeight = targetHeight + 'px';
-                
-                // Set to none after transition for dynamic content
-                content.addEventListener('transitionend', function handler() {
+                // After transition completes, set to auto for dynamic content
+                const transitionHandler = () => {
                     if (collapsible.classList.contains('active')) {
-                        content.classList.add('expanded');
                         content.style.maxHeight = 'none';
                     }
-                    content.removeEventListener('transitionend', handler);
-                }, { once: true });
+                    content.removeEventListener('transitionend', transitionHandler);
+                };
+                content.addEventListener('transitionend', transitionHandler, { once: true });
                 
-                // Update parent immediately
+                // Update parent height
                 const parentContent = content.parentElement;
                 if (parentContent && parentContent.classList.contains('content')) {
-                    requestAnimationFrame(() => updateParentHeight(parentContent));
+                    updateParentHeight(parentContent);
+                }
+            } else {
+                // Collapsing - snap to current height first, then animate to 0
+                content.style.maxHeight = content.scrollHeight + 'px';
+                
+                // Trigger reflow
+                void content.offsetHeight;
+                
+                // Now animate to 0
+                content.style.maxHeight = '0';
+                
+                // Update parent after animation
+                const parentContent = content.parentElement;
+                if (parentContent && parentContent.classList.contains('content')) {
+                    setTimeout(() => updateParentHeight(parentContent), 310);
                 }
             }
         }
         
-        // Optimized parent height updates with checks
+        // Update parent container height when child changes
         function updateParentHeight(parentContent) {
-            if (!parentContent.classList.contains('expanded') && !parentContent.style.maxHeight) return;
-            
             const parentButton = parentContent.previousElementSibling;
             if (!parentButton || !parentButton.classList.contains('active')) return;
             
-            requestAnimationFrame(() => {
-                parentContent.style.maxHeight = parentContent.scrollHeight + 'px';
-            });
+            const newHeight = parentContent.scrollHeight;
+            if (newHeight > 0) {
+                parentContent.style.maxHeight = newHeight + 'px';
+            }
         }
 
         function handleError(error) {
